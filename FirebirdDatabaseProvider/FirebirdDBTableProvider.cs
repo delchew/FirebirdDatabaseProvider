@@ -147,7 +147,7 @@ namespace FirebirdDatabaseProvider
             return result;
         }
 
-        private void CreateBoolIntDBDomain(string domainName)
+        private void CreateBoolIntDBDomain(string domainName) //По сути одноразовый метод для одной базы данных так как логический тип данных нужен только один
         {
             if (domainName.FBIdentifierLengthIsTooLong())
                 throw new Exception($"Too long domain name! (31 bytes max!)");
