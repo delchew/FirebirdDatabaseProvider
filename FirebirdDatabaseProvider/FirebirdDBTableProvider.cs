@@ -5,7 +5,6 @@ using System;
 using System.Text;
 using System.Reflection;
 using System.Collections.Generic;
-using System.Data;
 
 namespace FirebirdDatabaseProvider
 {
@@ -29,8 +28,9 @@ namespace FirebirdDatabaseProvider
         /// </summary>
         private static readonly Dictionary<string, string> _tableFieldAutoincrementInfoDict;
 
-        private readonly string _dbConnectionString;
-        private FbConnection _connection;
+        //private readonly string _dbConnectionString;
+        //private FbConnection _connection;
+        private FirebirdDBProvider _dbProvider;
         private FbCommand _command;
         
         public string TableName { get => _tableName; }
@@ -98,23 +98,24 @@ namespace FirebirdDatabaseProvider
             }
         }
 
-        public FirebirdDBTableProvider(string connectionString)
+        public FirebirdDBTableProvider(FirebirdDBProvider dbProvider)
         {
-            _dbConnectionString = connectionString;
+            //_dbConnectionString = connectionString;
+            _dbProvider = dbProvider;
         }
 
-        public void OpenConnection()
-        {
-            _connection = new FbConnection(_dbConnectionString);
-            _connection.Open();
-        }
+        //public void OpenConnection()
+        //{
+        //    _connection = new FbConnection(_dbConnectionString);
+        //    _connection.Open();
+        //}
 
-        public void CloseConnection()
-        {
-            if(_connection?.State != ConnectionState.Closed)
-                _connection?.Close();
-            _connection.Dispose();
-        }
+        //public void CloseConnection()
+        //{
+        //    if(_connection?.State != ConnectionState.Closed)
+        //        _connection?.Close();
+        //    _connection.Dispose();
+        //}
 
         public void CreateTableIfNotExists()
         {
@@ -134,10 +135,7 @@ namespace FirebirdDatabaseProvider
                 }
 
                 createTableQueryBuilder.Append(");");
-                using (_command = new FbCommand(createTableQueryBuilder.ToString(), _connection))
-                {
-                    _command.ExecuteNonQuery();
-                }
+                ExecuteNonQuery(createTableQueryBuilder.ToString());
 
                 foreach (var fieldGenNamesPair in _tableFieldAutoincrementInfoDict)
                     CreateFieldAutoincrement(fieldGenNamesPair.Key, fieldGenNamesPair.Value);
@@ -147,36 +145,26 @@ namespace FirebirdDatabaseProvider
         public void AddItem(T item)
         {
             var sqlInsertRequestString = GetInsertRequestString(item);
-            using (_command = new FbCommand(sqlInsertRequestString, _connection))
-            {
-                _command.ExecuteNonQuery();
-            }
+            ExecuteNonQuery(sqlInsertRequestString);
         }
 
-        public object GetSingleObjBySQL(string sqlRequest)
+        private object GetSingleObjBySQL(string sqlRequest)
         {
             object result;
-            using (var command = new FbCommand(sqlRequest, _connection))
+            using (var command = new FbCommand(sqlRequest, _dbProvider.Connection))
             {
                 result = command.ExecuteScalar();
             }
             return result;
         }
 
-        public void CreateBoolIntDBDomain(string domainName)
+        private void CreateBoolIntDBDomain(string domainName)
         {
             if (domainName.FBIdentifierLengthIsTooLong())
                 throw new Exception($"Too long domain name! (31 bytes max!)");
 
             var createBoolDomainSql = $@"CREATE DOMAIN {domainName} AS INTEGER DEFAULT 0 NOT NULL CHECK (VALUE IN(0,1));";
-            var connection = new FbConnection(_dbConnectionString);
-            connection.Open();
-            using (var command = new FbCommand(createBoolDomainSql, connection))
-            {
-                command.ExecuteNonQuery();
-            }
-            connection.Close();
-            connection.Dispose();
+            ExecuteNonQuery(createBoolDomainSql);
         }
 
         public bool TableExists() => DatabaseMemberExists("RDB$RELATIONS", "RDB$RELATION_NAME", _tableName);
@@ -186,20 +174,16 @@ namespace FirebirdDatabaseProvider
         private bool DatabaseMemberExists(string tableName, string tableMemberFieldName, string memberName)
         {
             var sqlCheckTableExistString = $@"SELECT 1 FROM {tableName} tn WHERE tn.{tableMemberFieldName} = '{memberName}'";
-            object result;
-            using (_command = new FbCommand(sqlCheckTableExistString, _connection))
-            {
-                result = _command.ExecuteScalar();
-            }
+            var result = GetSingleObjBySQL(sqlCheckTableExistString);
             return result != null;
         }
 
         public ICollection<T> GetAllItemsFromTable()
         {
             var itemsCollection = new List<T>();
-            var sqlSelectqueryEtring = $"SELECT * FROM {_tableName};";
+            var sqlSelectQueryString = $"SELECT * FROM {_tableName};";
             FbDataReader reader;
-            using (_command = new FbCommand(sqlSelectqueryEtring, _connection))
+            using (_command = new FbCommand(sqlSelectQueryString, _dbProvider.Connection))
             {
                 reader = _command.ExecuteReader();
                 if (!reader.HasRows)
@@ -220,6 +204,15 @@ namespace FirebirdDatabaseProvider
 
             return itemsCollection;
         }
+
+        private void ExecuteNonQuery(string query)
+        {
+            using (_command = new FbCommand(query, _dbProvider.Connection))
+            {
+                _command.ExecuteNonQuery();
+            }
+        }
+
 
         private string GetInsertRequestString(T item)
         {
@@ -259,7 +252,7 @@ namespace FirebirdDatabaseProvider
             FbCommand command;
             if (!GeneratorExists(generatorName))
             {
-                using (command = new FbCommand($@"CREATE GENERATOR {generatorName};", _connection))
+                using (command = new FbCommand($@"CREATE GENERATOR {generatorName};", _dbProvider.Connection))
                     command.ExecuteNonQuery();
             }
 
@@ -267,14 +260,14 @@ namespace FirebirdDatabaseProvider
             var builder = new StringBuilder($@"CREATE TRIGGER {triggerName} FOR {_tableName} ACTIVE BEFORE INSERT AS BEGIN ");
             builder.Append($@"IF (NEW.{tableFieldName} IS NULL) THEN NEW.{tableFieldName} = GEN_ID({generatorName}, 1); END;");
 
-            using (command = new FbCommand(builder.ToString(), _connection))
+            using (command = new FbCommand(builder.ToString(), _dbProvider.Connection))
                 command.ExecuteNonQuery();
         }
 
         private long GetGeneratorNextValue(string generatorName)
         {
             var sqlRequestString = $@"SELECT GEN_ID({generatorName}, 1) FROM RDB$DATABASE";
-            using (var command = new FbCommand(sqlRequestString, _connection))
+            using (var command = new FbCommand(sqlRequestString, _dbProvider.Connection))
             {
                 var result = command.ExecuteScalar();
                 if (result != null)
