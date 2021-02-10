@@ -273,7 +273,6 @@ namespace FirebirdDatabaseProvider
                 if (result != null)
                     return (long)result;
                 throw new Exception("Не удалось получить следующий номер ID!");
-
             }
         }
 
