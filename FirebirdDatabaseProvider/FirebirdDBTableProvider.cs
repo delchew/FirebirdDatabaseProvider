@@ -28,7 +28,7 @@ namespace FirebirdDatabaseProvider
         /// </summary>
         private static readonly Dictionary<string, string> _tableFieldAutoincrementInfoDict;
 
-        private static long _primaryKeyId;
+        private static long _primaryKeyId; //хреновое решение, но надо сделать по быстрому чтоб пока работало
 
         //private readonly string _dbConnectionString;
         //private FbConnection _connection;
