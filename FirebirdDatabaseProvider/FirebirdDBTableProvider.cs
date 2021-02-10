@@ -28,6 +28,8 @@ namespace FirebirdDatabaseProvider
         /// </summary>
         private static readonly Dictionary<string, string> _tableFieldAutoincrementInfoDict;
 
+        private static long _primaryKeyId;
+
         //private readonly string _dbConnectionString;
         //private FbConnection _connection;
         private FirebirdDBProvider _dbProvider;
@@ -100,22 +102,8 @@ namespace FirebirdDatabaseProvider
 
         public FirebirdDBTableProvider(FirebirdDBProvider dbProvider)
         {
-            //_dbConnectionString = connectionString;
             _dbProvider = dbProvider;
         }
-
-        //public void OpenConnection()
-        //{
-        //    _connection = new FbConnection(_dbConnectionString);
-        //    _connection.Open();
-        //}
-
-        //public void CloseConnection()
-        //{
-        //    if(_connection?.State != ConnectionState.Closed)
-        //        _connection?.Close();
-        //    _connection.Dispose();
-        //}
 
         public void CreateTableIfNotExists()
         {
@@ -142,10 +130,11 @@ namespace FirebirdDatabaseProvider
             }
         }
 
-        public void AddItem(T item)
+        public long AddItem(T item)
         {
             var sqlInsertRequestString = GetInsertRequestString(item);
             ExecuteNonQuery(sqlInsertRequestString);
+            return _primaryKeyId; //говнокод. Надо как-то это исправить в будущем или не писать кривые велосипеды))
         }
 
         private object GetSingleObjBySQL(string sqlRequest)
@@ -227,7 +216,10 @@ namespace FirebirdDatabaseProvider
                 if(_tableFieldAutoincrementInfoDict.ContainsKey(info.Value.TableFieldName))
                 {
                     genName = _tableFieldAutoincrementInfoDict[info.Value.TableFieldName];
-                    stringValue = GetGeneratorNextValue(genName).ToString();
+                    var genValue = GetGeneratorNextValue(genName);
+                    if (info.Value.IsPrymaryKey)
+                        _primaryKeyId = genValue; //Это жёсткий говнокод, но пока хз как это сделать без глобального рефакторинга! (Надо разбираться с Entity Framework и не писать велосипеды)))
+                    stringValue = genValue.ToString();
                 }
                 else
                     stringValue = GetSqlTypeStringValue(propValue);
