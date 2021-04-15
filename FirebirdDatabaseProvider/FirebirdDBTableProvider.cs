@@ -222,8 +222,11 @@ namespace FirebirdDatabaseProvider
                     stringValue = genValue.ToString();
                 }
                 else
-                    stringValue = GetSqlTypeStringValue(propValue);
-                
+                {
+                    if (propValue == null) stringValue = "NULL";
+                    else stringValue = GetSqlTypeStringValue(propValue);
+                }
+
                 sqlRequestStringBuilder1.Append(splitter + info.Value.TableFieldName);
                 sqlRequestStringBuilder2.Append(splitter + stringValue);
                 splitter = COMMA_SPLITTER;
@@ -270,7 +273,6 @@ namespace FirebirdDatabaseProvider
 
         private string GetSqlTypeStringValue(object value)
         {
-            if (value == null) return "NULL";
             var propType = value.GetType();
 
             switch (propType.Name)
