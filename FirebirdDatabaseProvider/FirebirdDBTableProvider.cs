@@ -270,6 +270,7 @@ namespace FirebirdDatabaseProvider
 
         private string GetSqlTypeStringValue(object value)
         {
+            if (value == null) return "NULL";
             var propType = value.GetType();
 
             switch (propType.Name)
